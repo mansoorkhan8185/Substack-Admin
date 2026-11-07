@@ -202,15 +202,18 @@ function need(){
 function auth(){
   return new Promise(function(res,rej){
     if(token)return res(token);
-    function go(){
-      google.accounts.oauth2.initTokenClient({client_id:$("cid").value.trim(),scope:"https://www.googleapis.com/auth/firebase.remoteconfig",
-        callback:function(r){if(r.access_token){token=r.access_token;res(token)}else rej(new Error(r.error||"Sign-in failed"))}}).requestAccessToken();
-    }
-    if(window.google&&google.accounts)return go();
-    var s=document.createElement("script");s.src="https://accounts.google.com/gsi/client";s.onload=go;
-    s.onerror=function(){rej(new Error("Couldn’t load Google sign-in. Check your connection."))};document.head.appendChild(s);
+    if(!(window.google&&google.accounts&&google.accounts.oauth2))
+      return rej(new Error("Google sign-in is still loading. Wait a few seconds and tap again."));
+    google.accounts.oauth2.initTokenClient({
+      client_id:$("cid").value.trim(),
+      scope:"https://www.googleapis.com/auth/firebase.remoteconfig",
+      callback:function(r){if(r.access_token){token=r.access_token;res(token)}else rej(new Error(r.error_description||r.error||"Sign-in failed"))},
+      error_callback:function(e){rej(new Error(e.type==="popup_failed_to_open"?"The sign-in pop-up was blocked. Allow pop-ups for this site in Chrome and tap again.":e.type==="popup_closed"?"The sign-in window was closed before finishing.":(e.message||e.type||"Sign-in failed")))}
+    }).requestAccessToken();
   });
 }
+// load Google sign-in up front so the pop-up opens straight from your tap
+(function(){var s=document.createElement("script");s.src="https://accounts.google.com/gsi/client";s.async=true;document.head.appendChild(s)})();
 function api(p,opt){
   return auth().then(function(t){
     opt=opt||{};opt.headers=Object.assign({Authorization:"Bearer "+t},opt.headers||{});
