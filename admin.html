@@ -206,7 +206,7 @@ function auth(){
       return rej(new Error("Google sign-in is still loading. Wait a few seconds and tap again."));
     google.accounts.oauth2.initTokenClient({
       client_id:$("cid").value.trim(),
-      scope:"https://www.googleapis.com/auth/firebase.remoteconfig",
+      scope:"https://www.googleapis.com/auth/cloud-platform",
       callback:function(r){if(r.access_token){token=r.access_token;res(token)}else rej(new Error(r.error_description||r.error||"Sign-in failed"))},
       error_callback:function(e){rej(new Error(e.type==="popup_failed_to_open"?"The sign-in pop-up was blocked. Allow pop-ups for this site in Chrome and tap again.":e.type==="popup_closed"?"The sign-in window was closed before finishing.":(e.message||e.type||"Sign-in failed")))}
     }).requestAccessToken();
