@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Substack Reader’s Admin</title>
+<style>
+:root{--bg:#eef1f5;--panel:#fff;--ink:#14213d;--mut:#5d6b82;--line:#d6dce6;--brand:#ff6719;--on:#14213d;--warn:#b42318;--ok:#157347;--field:#f7f9fc}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1624;--panel:#18223a;--ink:#eef2fa;--mut:#9aa8c2;--line:#2b3a5a;--field:#111a2e;--on:#eef2fa}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:96px}
+main{max-width:640px;margin:0 auto;padding:16px}
+h1{font-size:1.5rem;margin:8px 0 2px;letter-spacing:-.01em}
+.sub{color:var(--mut);margin:0 0 16px}
+.state{border-radius:10px;padding:12px 14px;margin-bottom:20px;font-weight:600;border-left:6px solid var(--ok);background:var(--panel)}
+.state.warn{border-color:var(--warn)}
+.state small{display:block;font-weight:400;color:var(--mut)}
+section{background:var(--panel);border-radius:14px;padding:6px 16px 14px;margin-bottom:18px;border:1px solid var(--line)}
+h2{font-size:1.05rem;margin:14px 0 4px}
+.note{color:var(--mut);font-size:.9rem;margin:0 0 6px}
+.f{padding:10px 0;border-top:1px solid var(--line)}
+.f:first-of-type{border-top:0}
+label{display:block;font-weight:600;margin-bottom:4px}
+.hint{color:var(--mut);font-size:.85rem;margin-top:3px}
+input[type=text],textarea{width:100%;padding:11px 12px;border-radius:9px;border:1px solid var(--line);background:var(--field);color:var(--ink);font:inherit}
+textarea{min-height:90px;font-family:ui-monospace,Menlo,monospace;font-size:.9rem}
+input:focus,textarea:focus,button:focus-visible{outline:3px solid var(--brand);outline-offset:1px}
+.sw{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.sw input{appearance:none;width:52px;height:30px;border-radius:30px;background:var(--line);position:relative;cursor:pointer;flex:none;transition:background .15s}
+.sw input::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:transform .15s}
+.sw input:checked{background:var(--brand)}
+.sw input:checked::after{transform:translateX(22px)}
+.logo{width:56px;height:56px;border-radius:50%;object-fit:cover;background:var(--line);float:right;margin-left:10px}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-top:1px solid var(--line);padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px))}
+.bar div{max-width:640px;margin:0 auto;display:flex;gap:8px}
+button{font:inherit;font-weight:600;border-radius:10px;padding:12px 14px;border:1px solid var(--line);background:var(--field);color:var(--ink);cursor:pointer;flex:1}
+button.p{background:var(--brand);border-color:var(--brand);color:#fff}
+details{margin-bottom:18px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 16px}
+summary{font-weight:600;cursor:pointer}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.row button{flex:1 1 140px}
+#msg{margin:10px 0 0;font-size:.92rem;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<main>
+  <h1>Substack Reader’s admin</h1>
+  <p class="sub">Edit the app’s Remote Config values, then publish them.</p>
+
+  <div id="state" class="state"></div>
+
+  <section>
+    <h2>App</h2>
+    <div id="g-app"></div>
+  </section>
+  <section>
+    <h2>Release control</h2>
+    <p class="note">These switches change what every installed app does on its next launch.</p>
+    <div id="g-ctl"></div>
+  </section>
+  <section>
+    <h2>Unity Ads</h2>
+    <p class="note">Unity takes priority when both ad networks are on.</p>
+    <div id="g-unity"></div>
+  </section>
+  <section>
+    <h2>AdMob</h2>
+    <div id="g-admob"></div>
+  </section>
+
+  <details>
+    <summary>Publish directly from this page (optional)</summary>
+    <p class="note">Needs a Google OAuth Client ID with this page’s web address listed as an authorized JavaScript origin, so open the page from an https address such as GitHub Pages. Or skip this and use Download, then Firebase → Remote Config → ⋮ → Publish from a file.</p>
+    <div class="f"><label for="pid">Firebase project ID</label><input type="text" id="pid" autocomplete="off"></div>
+    <div class="f"><label for="cid">OAuth Client ID</label><input type="text" id="cid" autocomplete="off"></div>
+    <div class="row">
+      <button id="btnLoad">Load from Firebase</button>
+      <button id="btnPub" class="p">Publish to Firebase</button>
+    </div>
+    <p id="msg" role="status"></p>
+  </details>
+</main>
+
+<div class="bar"><div>
+  <button id="btnImport">Import file</button>
+  <button id="btnCopy">Copy JSON</button>
+  <button id="btnDl" class="p">Download JSON</button>
+</div></div>
+<input type="file" id="file" accept=".json,application/json" hidden>
+
+<script>
+// key, label, type (s=text, b=switch, t=textarea), group, hint
+var F=[
+["KEY_APP_NAME","App name","s","app","Shown in the toolbar and splash screen."],
+["KEY_APP_URL","Website the app opens","s","app","Loaded when the app starts and when Home is tapped."],
+["KEY_LOGO_URL","Logo image link","s","app","Direct link to a square image."],
+["KEY_CUSTOM_CSS","Custom CSS","t","app","Injected into every page. Leave empty for none."],
+["KEY_MAINTENANCE_MODE","Maintenance mode","b","ctl","Shows “We’ll be right back” instead of the site."],
+["KEY_FORCE_UPDATE","Force update","b","ctl","Blocks the app until users update."],
+["KEY_MIN_VERSION","Minimum allowed version","s","ctl","Older versions are forced to update. Example: 1.0.0"],
+["KEY_LATEST_VERSION","Latest version","s","ctl","Older versions see an optional update prompt."],
+["KEY_UPDATE_URL","Update page link","s","ctl","Opened by the Update button."],
+["UNITY_ENABLE_ADS","Show Unity ads","b","unity",""],
+["unity_game_id","Game ID","s","unity",""],
+["unity_banner_id","Banner placement","s","unity",""],
+["unity_interstitial_id","Interstitial placement","s","unity",""],
+["ADMOB_ENABLE_ADS","Show AdMob ads","b","admob",""],
+["KEY_BANNER_AD_UNIT","Banner ad unit","s","admob",""],
+["KEY_INTERSTITIAL_AD_UNIT","Interstitial ad unit","s","admob",""]
+];
+var V={
+KEY_APP_NAME:"Substack Reader's",KEY_APP_URL:"https://substack.com/",
+KEY_LOGO_URL:"https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEjV9Gp5Zw_4JboqshTk8Xd11ZnKaoG_Th6tU1BfaW-Te94ZoC_jHaluyA1kUZdbQC5JkCqk-WHPP9YY-jdFCGk8TxnoRPRpG7joSLLv8kBl-1KVtz0E21RrQ4eKr-QUY1xSXsh78mKbx7h5pGs1ZrqKnhC_JcR_jmRouHwGdVTohxRekaimP2IL9JIj819q/s320/IMG-20261013-WA8906.jpg",
+KEY_CUSTOM_CSS:"",KEY_MAINTENANCE_MODE:"false",KEY_FORCE_UPDATE:"false",KEY_MIN_VERSION:"1.0.0",KEY_LATEST_VERSION:"1.0.0",
+KEY_UPDATE_URL:"https://browserforsubstack.blogspot.com/p/home_0331135577.html?m=1",
+UNITY_ENABLE_ADS:"true",unity_game_id:"6063435",unity_banner_id:"Banner_Android",unity_interstitial_id:"Interstitial_Android",
+ADMOB_ENABLE_ADS:"false",KEY_BANNER_AD_UNIT:"ca-app-pub-2722566468722118/9719045018",KEY_INTERSTITIAL_AD_UNIT:"ca-app-pub-2722566468722118/6007864863"
+};
+var $=function(i){return document.getElementById(i)};
+var msg=function(t){$("msg").textContent=t};
+
+function render(){
+  ["app","ctl","unity","admob"].forEach(function(g){$("g-"+g).innerHTML=""});
+  F.forEach(function(f){
+    var k=f[0],box=document.createElement("div");box.className="f";
+    var h=f[4]?'<div class="hint">'+f[4]+'</div>':"";
+    if(f[2]==="b"){
+      box.innerHTML='<div class="sw"><label for="'+k+'" style="margin:0">'+f[1]+'</label><input type="checkbox" id="'+k+'" role="switch"></div>'+h;
+    }else if(f[2]==="t"){
+      box.innerHTML='<label for="'+k+'">'+f[1]+'</label><textarea id="'+k+'" spellcheck="false"></textarea>'+h;
+    }else{
+      var logo=k==="KEY_LOGO_URL"?'<img class="logo" id="logoPrev" alt="">':"";
+      box.innerHTML=logo+'<label for="'+k+'">'+f[1]+'</label><input type="text" id="'+k+'" autocomplete="off" autocapitalize="off">'+h;
+    }
+    $("g-"+f[3]).appendChild(box);
+    var el=$(k);
+    if(f[2]==="b"){el.checked=V[k]==="true";el.onchange=function(){V[k]=el.checked?"true":"false";status();confirmRisky(k,el)}}
+    else{el.value=V[k];el.oninput=function(){V[k]=el.value;if(k==="KEY_LOGO_URL")logo2();status()}}
+  });
+  logo2();status();
+}
+function logo2(){var i=$("logoPrev");if(i)i.src=V.KEY_LOGO_URL||""}
+function confirmRisky(k,el){
+  if(el.checked&&(k==="KEY_MAINTENANCE_MODE"||k==="KEY_FORCE_UPDATE")){
+    var t=k==="KEY_MAINTENANCE_MODE"?"Maintenance mode will lock every user out of the site":"Force update will block every user until they update";
+    if(!confirm(t+" once you publish. Turn it on?")){el.checked=false;V[k]="false";status()}
+  }
+}
+function vnum(s){return String(s).trim().split(".").map(function(n){return parseInt(n,10)||0})}
+function older(a,b){a=vnum(a);b=vnum(b);for(var i=0;i<Math.max(a.length,b.length);i++){var x=a[i]||0,y=b[i]||0;if(x!==y)return x<y}return false}
+function status(){
+  var s=$("state"),warn=false,t,d=[];
+  if(V.KEY_MAINTENANCE_MODE==="true"){warn=true;t="Maintenance mode is on";d.push("Users see the maintenance screen.")}
+  else if(V.KEY_FORCE_UPDATE==="true"){warn=true;t="Force update is on";d.push("Users must update before reading.")}
+  else t="App is live for readers";
+  if(older(V.KEY_LATEST_VERSION,V.KEY_MIN_VERSION)){warn=true;d.push("Latest version is lower than the minimum version.")}
+  d.push(V.UNITY_ENABLE_ADS==="true"?"Ads: Unity":V.ADMOB_ENABLE_ADS==="true"?"Ads: AdMob":"Ads: off");
+  s.className="state"+(warn?" warn":"");
+  s.innerHTML=t+"<small>"+d.join(" ")+"</small>";
+}
+function build(){
+  var p={};
+  F.forEach(function(f){
+    var o={defaultValue:{value:V[f[0]]},valueType:f[2]==="b"?"BOOLEAN":"STRING"};
+    if(f[0]==="ADMOB_ENABLE_ADS")o.description="enableAds";
+    p[f[0]]=o;
+  });
+  return {parameters:p};
+}
+function json(){return JSON.stringify(build(),null,2)}
+function apply(params){
+  var n=0;
+  Object.keys(params||{}).forEach(function(k){
+    if(k in V&&params[k].defaultValue&&params[k].defaultValue.value!==undefined){V[k]=String(params[k].defaultValue.value);n++}
+  });
+  render();return n;
+}
+
+$("btnDl").onclick=function(){
+  var a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([json()],{type:"application/json"}));
+  a.download="remote_config_ready.json";document.body.appendChild(a);a.click();a.remove();
+};
+$("btnCopy").onclick=function(){
+  (navigator.clipboard?navigator.clipboard.writeText(json()):Promise.reject()).then(function(){alert("JSON copied.")},function(){prompt("Copy this JSON:",json())});
+};
+$("btnImport").onclick=function(){$("file").click()};
+$("file").onchange=function(e){
+  var r=new FileReader();
+  r.onload=function(){try{var n=apply(JSON.parse(r.result).parameters);alert("Imported "+n+" values.")}catch(x){alert("That file isn’t a valid Remote Config JSON.")}};
+  if(e.target.files[0])r.readAsText(e.target.files[0]);e.target.value="";
+};
+
+// optional direct publish (Google sign-in + Remote Config REST API)
+var token=null;
+$("pid").value=localStorage.getItem("sr_pid")||"";$("cid").value=localStorage.getItem("sr_cid")||"";
+function need(){
+  var p=$("pid").value.trim(),c=$("cid").value.trim();
+  if(!p||!c){msg("Enter the Firebe project ID and OAuth Client ID first.".replace("Firebe","Firebase"));return null}
+  localStorage.setItem("sr_pid",p);localStorage.setItem("sr_cid",c);return p;
+}
+function auth(){
+  return new Promise(function(res,rej){
+    if(token)return res(token);
+    function go(){
+      google.accounts.oauth2.initTokenClient({client_id:$("cid").value.trim(),scope:"https://www.googleapis.com/auth/firebase.remoteconfig",
+        callback:function(r){if(r.access_token){token=r.access_token;res(token)}else rej(new Error(r.error||"Sign-in failed"))}}).requestAccessToken();
+    }
+    if(window.google&&google.accounts)return go();
+    var s=document.createElement("script");s.src="https://accounts.google.com/gsi/client";s.onload=go;
+    s.onerror=function(){rej(new Error("Couldn’t load Google sign-in. Check your connection."))};document.head.appendChild(s);
+  });
+}
+function api(p,opt){
+  return auth().then(function(t){
+    opt=opt||{};opt.headers=Object.assign({Authorization:"Bearer "+t},opt.headers||{});
+    return fetch("https://firebase.googleapis.com/v1/projects/"+p+"/remoteConfig",opt);
+  }).then(function(r){return r.json().then(function(b){if(!r.ok)throw new Error((b.error&&b.error.message)||r.status);return b})});
+}
+$("btnLoad").onclick=function(){
+  var p=need();if(!p)return;msg("Loading…");
+  api(p).then(function(t){msg("Loaded "+apply(t.parameters)+" values from Firebase.")}).catch(function(e){msg("Couldn’t load: "+e.message)});
+};
+$("btnPub").onclick=function(){
+  var p=need();if(!p)return;
+  if(!confirm("Publish these values to the live app?"))return;
+  msg("Publishing…");
+  api(p).then(function(t){
+    var body=build();body.parameters=Object.assign({},t.parameters||{},body.parameters);
+    if(t.conditions)body.conditions=t.conditions;if(t.parameterGroups)body.parameterGroups=t.parameterGroups;
+    return api(p,{method:"PUT",headers:{"Content-Type":"application/json; UTF8","If-Match":"*"},body:JSON.stringify(body)});
+  }).then(function(){msg("Published. Apps pick this up on their next launch.")}).catch(function(e){msg("Couldn’t publish: "+e.message)});
+};
+
+render();
+</script>
+</body>
+</html>
